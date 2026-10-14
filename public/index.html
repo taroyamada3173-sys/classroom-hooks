@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Classroom Hooks — lesson ideas with traceable cultural references</title>
+<meta name="description" content="An agent for teachers: turn any topic into lesson hooks built on the shows, artists and games your students care about, grounded in Qloo taste data.">
+<style>
+:root{--ink:#1d2433;--muted:#5b6476;--line:#dde2ea;--bg:#f7f8fb;--card:#fff;--accent:#2f6fde;--accent2:#e8f0ff;--warn:#8a5a00}
+*{box-sizing:border-box}body{margin:0;font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+main{max-width:980px;margin:auto;padding:28px 20px 60px}h1{font-size:clamp(28px,5vw,40px);line-height:1.2;margin:8px 0}
+.lead{color:var(--muted);max-width:680px}form{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;display:grid;gap:14px;grid-template-columns:1fr 1fr}
+label{font-size:13px;font-weight:600;display:grid;gap:6px}input,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.wide{grid-column:1/-1}button{font:inherit;font-weight:700;padding:11px 18px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.hint{font-size:12px;color:var(--muted);font-weight:400}#status{color:var(--muted);min-height:24px;margin:14px 0}
+.hooks{display:grid;gap:14px}.hook{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--accent2);color:var(--accent);border-radius:99px;padding:2px 9px}
+.hook h3{margin:8px 0 6px;font-size:18px}.anchors{margin-top:10px;font-size:13px;color:var(--muted)}.anchors b{color:var(--ink)}
+.profile{background:#fff8e6;border:1px solid #f0dca8;border-radius:10px;padding:12px 14px;margin:16px 0;color:var(--warn);font-size:14px}
+details{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px}summary{cursor:pointer;font-weight:600}
+ol.trace{font:13px/1.5 ui-monospace,monospace;padding-left:20px}footer{margin-top:40px;font-size:13px;color:var(--muted)}
+@media(max-width:640px){form{grid-template-columns:1fr}}
+</style></head><body><main>
+<p class="tag">Classroom planning prototype</p>
+<h1>Classroom Hooks</h1>
+<p class="lead">Explore possible lesson openers around books, shows, artists and games. Enter a topic and interests, then review draft activities with references checked against Qloo results. The broad age signal covers people 24 and younger; it does not tell us what your particular class likes.</p>
+<form id="f">
+  <label>Grade band<select name="grade"><option value="k-2">K-2</option><option value="3-5">3-5</option><option value="6-8" selected>6-8</option><option value="9-12">9-12</option></select></label>
+  <label>Subject <span class="hint">optional</span><input name="subject" placeholder="Math" maxlength="60"></label>
+  <label class="wide">Topic<input name="topic" required placeholder="Ratios and unit rates" maxlength="160"></label>
+  <label class="wide">What is your class into? <span class="hint">optional, comma-separated — titles only; no student names or personal details</span><input name="interests" placeholder="Minecraft, a book title, an artist" maxlength="400"></label>
+  <div class="wide"><button id="go">Build hooks</button></div>
+</form>
+<div id="status" role="status"></div>
+<div id="profile"></div>
+<div class="hooks" id="hooks"></div>
+<details id="how" hidden><summary>How the agent got there</summary><ol class="trace" id="trace"></ol><p class="hint" id="calls"></p></details>
+<footer>
+<p>Movie and TV requests include a rating filter. This does not certify suitability, and other domains are not rating-filtered. Entity IDs are checked against this run; activity facts and teaching quality still need your review.</p>
+<p>In development for the Qloo Agentic Hackathon. Coded with Claude Code and Codex. Live API integration and deployment have not yet been verified. <a href="https://github.com/taroyamada3173-sys/classroom-hooks">Source</a> · MCP endpoint: <code>/mcp</code></p>
+</footer>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+$('#f').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const body = {grade: fd.get('grade'), subject: fd.get('subject'), topic: fd.get('topic'), interests: String(fd.get('interests') || '').split(',').map(s => s.trim()).filter(Boolean)};
+  $('#go').disabled = true; $('#status').textContent = 'Looking for possible references in Qloo…'; $('#hooks').innerHTML = ''; $('#profile').innerHTML = ''; $('#how').hidden = true;
+  try {
+    const res = await fetch('/api/run', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    const final = data.final || {};
+    $('#status').textContent = data.mode === 'agent' ? 'Done.' : data.mode === 'fallback' ? 'Draft ready (template mode: the model was unavailable or its answer failed validation).' : 'The agent could not finish. Try again.';
+    if (final.class_profile) $('#profile').innerHTML = `<div class="profile">${esc(final.class_profile)}</div>`;
+    $('#hooks').innerHTML = (final.hooks || []).map(h => `<article class="hook"><span class="tag">${esc((h.type || '').replace('_', ' '))}</span><h3>${esc(h.title)}</h3><p>${esc(h.text)}</p><div class="anchors">${(h.anchors || []).map(a => `<div><b>${esc(a.name)}</b> — ${esc(a.why)}</div>`).join('')}</div></article>`).join('') + ((final.cautions || []).length ? `<p class="hint">${final.cautions.map(esc).join(' · ')}</p>` : '');
+    $('#trace').innerHTML = (data.trace || []).map(t => `<li>${t.tool ? `${esc(t.tool)} → ${t.count} result(s)${t.error ? ' [error]' : ''}` : t.final ? 'final answer' : esc(t.error || '')}</li>`).join('');
+    $('#calls').textContent = `${(data.qlooCalls || []).length} Qloo API call(s) in this run.`;
+    $('#how').hidden = false;
+  } catch (err) { $('#status').textContent = err.message; }
+  finally { $('#go').disabled = false; }
+});
+</script>
+</body></html>
